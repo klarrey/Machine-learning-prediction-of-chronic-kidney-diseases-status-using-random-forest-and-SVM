@@ -1,0 +1,211 @@
+---
+title: "Prediction of chronic kidney disease"
+author: "Enoch"
+date: "4/9/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Load required libraries
+library (e1071)
+library(psych)
+pacman::p_load(pacman, dplyr, GGally, ggplot2, ggthemes, 
+               ggvis, httr, lubridate, plotly, rio, rmarkdown, shiny, 
+               stringr, tidyr)
+```
+
+```{r}
+# Read in dataset
+ckd <- read.csv("D:/tutorials/project/ckd_clean.csv")
+
+```
+
+```{r}
+# Look at first few rows
+head(ckd)
+```
+
+```{r}
+# Explore data via summary statistic
+summary(ckd)
+```
+```{r}
+# Extract each class value into a separate dataframe
+ckd0 <- subset(ckd, Class == 0)
+ckd1 <- subset(ckd, Class == 1)
+```
+
+```{r}
+# Exploratory analysis by plotting a pie chart of the distribution of the class values
+dist_class <- c(count(subset(ckd, Class == 1)), count(subset(ckd, Class == 0)))
+dist_class <- unlist(dist_class)
+lbls <- c("Chronic", "Not.Chronic")
+piepercent<- round(100*dist_class/sum(dist_class))
+lbls <- paste(piepercent,"%",sep="") # add % to labels
+color <- c("purple","blue")
+png(file="dist_class2.png")
+pie(dist_class, labels=lbls, col = color, main="Pie Chart of Class Distribution")
+legend("topright", c("Chronic", "Not Chronic"), cex=1.0,fill=color)
+dev.off()
+```
+```{r}
+# Plot a scatterplot for age and blood pressure
+xlim <- range(ckd0$Age,ckd1$Age)
+ylim <- range(ckd0$Blood.Pressure,ckd1$Blood.Pressure)
+png(file="agebypressure.png")
+plot(ckd0$Age,ckd0$Blood.Pressure,xlim =xlim, ylim = ylim, cex=1.2,pch=15,xlab="Age",
+     ylab="Blood pressure",col="red", main="Age by Blood Pressure") 
+points(ckd1$Age,ckd1$Blood.Pressure,cex=1.2,pch=17,xlab="Age",ylab="Blood pressure",col="blue")
+legend("topleft", c("Chronic","Not Chronic"), cex =1.4, col = c("red","blue"), pch=c(15,17))
+dev.off()
+```
+
+```{r}
+# # Plot a scatterplot for age and blood glucose
+xlim <- range(ckd0$Age, ckd1$Age)
+ylim <- range(ckd0$Blood.Glucose.Random, ckd1$Blood.Glucose.Random)
+png(file="agebybloodglucose.png")
+plot(ckd0$Age, ckd0$Blood.Glucose.Random,xlim =xlim, ylim = ylim, cex=1.2,pch=15,xlab="Age",
+     ylab="Blood glucose",col="red", main="Age by Blood Glucose") 
+points(ckd1$Age,ckd1$Blood.Glucose.Random,cex=1.2,pch=17,col="blue")
+legend("topleft", c("Chronic","Not Chronic"), cex =1.4, col = c("red","blue"), pch=c(15,17))
+dev.off()
+```
+```{r}
+# Data processing
+ckd <- read.csv("D:/tutorials/project/ckd_clean.csv")
+require(caTools)
+ckd$Specific.Gravity <- as.factor(ckd$Specific.Gravity)
+ckd$Albumin <- as.factor(ckd$Albumin)
+ckd$Sugar <- as.factor(ckd$Sugar)
+ckd[ckd$Class == 0,]$Class <- "notckd"
+ckd[ckd$Class == 1,]$Class <- "ckd"
+ckd$Class <- as.factor(ckd$Class)
+
+```
+```{r}
+# Split data into training and test data
+set.seed(101)
+sample = sample.split(ckd$Class, SplitRatio = .75)
+train = subset(ckd, sample == TRUE)
+test  = subset(ckd, sample == FALSE)
+write.csv(train, "train.csv", row.names = FALSE)
+write.csv(test, "test.csv", row.names = FALSE)
+```
+
+```{r}
+# required packages.
+library(randomForest)
+
+# Create the forest.
+model <- randomForest(as.factor(Class) ~., data = train)
+
+```
+```{r}
+# View the forest results.
+print(model) 
+```
+```{r}
+# Importance of each predictor.
+print(importance(model,type = 2))
+```
+```{r}
+#Testing model
+Class_pred <- predict(model, test)
+test$Class_pred <- Class_pred
+View(test)
+CFM <- table(test$Class, test$Class_pred)
+(accuracy <- paste((11+29)*100/(11+29+0+0), "%", sep=""))
+(sensitivity <- paste((11)*100/(11+0), "%", sep=""))
+(specifiicity <- paste((11)*100/(11+0), "%", sep=""))
+```
+```{r}
+#SVM
+ckd <- read.csv("D:/tutorials/project/ckd_clean.csv")
+library (e1071)
+ckd[ckd$Red.Blood.Cells == "normal",]$Red.Blood.Cells <- 0
+ckd[ckd$Red.Blood.Cells == "abnormal",]$Red.Blood.Cells <- 1
+ckd[ckd$Pus.Cell == "normal",]$Pus.Cell <- 0
+ckd[ckd$Pus.Cell == "abnormal",]$Pus.Cell <- 1
+ckd[ckd$Pus.Cell.clumps == "notpresent",]$Pus.Cell.clumps <- 0
+ckd[ckd$Pus.Cell.clumps == "present",]$Pus.Cell.clumps <- 1
+ckd[ckd$Bacteria == "notpresent",]$Bacteria <- 0
+ckd[ckd$Bacteria == "present",]$Bacteria <- 1
+ckd[ckd$Hypertension == "no",]$Hypertension <- 0
+ckd[ckd$Hypertension == "yes",]$Hypertension <- 1
+ckd[ckd$Diabetes.Mellitus == "no",]$Diabetes.Mellitus <- 0
+ckd[ckd$Diabetes.Mellitus == "yes",]$Diabetes.Mellitus <- 1
+ckd[ckd$Coronary.Artery.Disease == "no",]$Coronary.Artery.Disease <- 0
+ckd[ckd$Coronary.Artery.Disease == "yes",]$Coronary.Artery.Disease <- 1
+ckd[ckd$Appetite == "good",]$Appetite <- 0
+ckd[ckd$Appetite == "poor",]$Appetite <- 1
+ckd[ckd$Pedal.Edema == "no",]$Pedal.Edema <- 0
+ckd[ckd$Pedal.Edema == "yes",]$Pedal.Edema <- 1
+ckd[ckd$Anemia == "no",]$Anemia <- 0
+ckd[ckd$Anemia == "yes",]$Anemia <- 1
+ckd[ckd$Class == 0,]$Class <- "notckd"
+ckd[ckd$Class == 1,]$Class <- "ckd"
+
+ckd$Red.Blood.Cells <- as.integer(ckd$Red.Blood.Cells)
+ckd$Pus.Cell <- as.integer(ckd$Pus.Cell)
+ckd$Pus.Cell.clumps <- as.integer(ckd$Pus.Cell.clumps)
+ckd$Bacteria <- as.integer(ckd$Bacteria)
+ckd$Hypertension <- as.integer(ckd$Hypertension)
+ckd$Diabetes.Mellitus <- as.integer(ckd$Diabetes.Mellitus)
+ckd$Coronary.Artery.Disease <- as.integer(ckd$Coronary.Artery.Disease)
+ckd$Appetite <- as.integer(ckd$Appetite)
+ckd$Pedal.Edema <- as.integer(ckd$Pedal.Edema)
+ckd$Anemia <- as.integer(ckd$Anemia)
+ckd$Specific.Gravity <- as.integer(ckd$Specific.Gravity)
+ckd$Albumin <- as.integer(ckd$Albumin)
+ckd$Sugar <- as.integer(ckd$Sugar)
+
+```
+
+```{r}
+# Splitting data into training and test
+require(caTools)
+set.seed(101)
+sample = sample.split(ckd$Class, SplitRatio = .75)
+train = subset(ckd, sample == TRUE)
+test  = subset(ckd, sample == FALSE)
+```
+
+```{r}
+# Extract features and target and Train SVM model
+train.feature = as.matrix(train[,1:24])
+rownames (train.feature) = train[,25]
+
+kidneyLabel = factor(train[,25], level = c("ckd", "notckd"))
+model <- svm(train[, -25], kidneyLabel, kernel = "linear", scale = TRUE, 
+             type = "C-classification")
+```
+```{r}
+# Model summary
+summary (model)
+```
+```{r}
+# Testing
+preds <- predict(model, test[, -25])
+```
+
+```{r}
+# Merge prediction with test data and view
+test$preds <- preds
+View(test)
+```
+
+```{r}
+# Confusion matrix and model assessment
+(CFM <- table(test$Class, test$preds))
+
+#model performance
+(accuracy <- paste((((29+9)/(9+29+2+0)) * 100), "%", sep=""))
+(sensitivity <- paste(((9/(9+0)) * 100), "%", sep=""))
+(specificity <- paste(((29/(29+2)) * 100), "%", sep=""))
+```
+
